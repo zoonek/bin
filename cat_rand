@@ -1,0 +1,25 @@
+#!/usr/bin/perl -w
+
+# cat_rand.pl
+# (c) 2001 Vincent Zoonekynd <zoonek@math.jussieu.fr>
+# Shuffles the lines from stdin and sends them to stdout
+# Use at your own risk
+
+use strict;
+
+# from the FAQ:
+# fisher_yates_shuffle( \@array ) :
+# generate a random permutation of @array in place
+sub fisher_yates_shuffle {
+  my $array = shift;
+  my $i;
+  for ($i = @$array; --$i; ) {
+    my $j = int rand ($i+1);
+    next if $i == $j;
+    @$array[$i,$j] = @$array[$j,$i];
+  }
+}
+
+my @l=<>;
+fisher_yates_shuffle(\@l);
+print @l;

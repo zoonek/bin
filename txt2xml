@@ -1,0 +1,154 @@
+#!/usr/bin/perl -w
+use strict;
+
+use constant TRUE  => (0==0);
+use constant FALSE => (0==1);
+
+use constant NONE       => 0;
+use constant TEXT       => 1;
+use constant CODE       => 2;
+use constant SECTION    => 3;
+use constant SUBSECTION => 4;
+use constant TITLE      => 5;
+
+use Getopt::Long;
+our $utf8 = FALSE;
+our $toc = FALSE;
+GetOptions('utf8' => \$utf8, 'toc' => \$toc);
+
+
+our $type = TITLE;
+
+our $result = "";
+
+sub affiche { foreach my $a (@_){ $result .= $a } }
+
+if($utf8) {
+  affiche "<?xml version=\"1.0\" encoding=\"utf-8\" ?>";
+} else {
+  affiche "<?xml version=\"1.0\" encoding=\"iso-8859-1\" ?>";
+}
+affiche "<web>
+  <head>
+    <title>";
+
+while(<>){
+  # Une ligne blanche termine le titre du document et des sections
+  # Sinon, elle est juste ignorée.
+  if( m/^\s*$/ ){
+    print STDERR "Empty line: $_";
+    if( $type == TITLE ){
+      affiche "</title></head>\n";
+      affiche "<toc/>\n" if $toc;
+    } elsif($type == SECTION ){
+      affiche "</h1>";
+    } elsif($type == SUBSECTION ){
+      affiche "</h2>";
+    } elsif($type == TEXT ){
+      affiche "</p>";
+    } 
+    $type = NONE unless $type == CODE;
+  }
+  # Ligne qui commence par « = »
+  elsif( s/^\=\s*(.*)// ){
+    print STDERR "Image: $1\n";
+    if( $type == NONE ){
+      affiche "<img src=\"$1\"/>";
+    } elsif( $type == CODE ){
+      affiche "</code>";
+      $type = NONE;
+      affiche "<img src=\"$1\"/>";
+    } else {
+      die "Missing empty line?";
+    }
+  }
+  # Une ligne (non blanche) qui commence par deux espaces
+  elsif( s/^\s\s// ){
+    print STDERR "Code:       $_";
+    if( $type == NONE ){
+      affiche "<code>\n";
+    } elsif( $type != CODE ){
+      die "Missing empty line?\n";
+    }
+    $type = CODE;
+  }
+  # Une ligne qui commence par *
+  elsif( s/^\*\s*// ){
+    print STDERR "Section:    $_";
+    if( $type == CODE ){
+      affiche "</code>\n\n<h1>";
+    } elsif( $type == NONE ){
+      affiche "<h1>";
+    } else { die "Missing empty line ?" }
+    $type = SECTION;
+  }
+  # Une ligne qui commence par +
+  elsif( s/^\+\s*// ){
+    print STDERR "Subsection: $_";
+    if( $type == CODE ){
+      affiche "</code>\n\n<h2>";
+    } elsif( $type == NONE ){
+      affiche "<h2>";
+    } else { die "Missing empty line ?" }
+    $type = SUBSECTION;
+  }
+  # Une ligne commençant par autre chose qu'un espace : texte.
+  elsif( m/^[^\s]/ and ($type != TITLE) ){
+    print STDERR "Text:       $_";
+    if( $type == CODE ){
+      affiche "</code><p>\n";
+    } elsif( $type == NONE ){
+      affiche "<p>\n";
+    } elsif( $type != TEXT ){
+      die "Missing empty line?";
+    }
+    $type = TEXT;
+  }
+
+  # On échape les caracères < et &
+  # On essaie de reconnaitre les URLs
+  {
+    my $a = $_;
+    my $b = "";
+    while( $a =~ s#^(.*?)(URL:[^\s"]+|(ftp|http)://[^\s"]+)## ){
+      my $c = $1;
+      my $d = $2;
+      print STDERR "URL: $d\n";
+      $c =~ s/\&/\&amp\;/g;
+      $c =~ s/\</\&lt\;/g;
+      $d =~ s/^URL://;
+      $d =~ s/^"//; $d =~ s/"$//;
+      my $dd = $d;
+      $dd =~ s/\&/\&amp\;/g;
+      $b .= $c . "<a href=\"$dd\">$dd</a>";
+    }
+    $a =~ s/\&/\&amp\;/g; $a =~ s/\</\&lt\;/g;
+    $b .= $a;
+    $_ = $b;
+  }
+
+  affiche $_;
+}
+
+if( $type == TEXT ){
+  affiche "</p>";
+} elsif( $type == CODE ){
+  affiche "</code>";
+} elsif( $type == SECTION ){
+  affiche "</h1>";
+} elsif( $type == TITLE ){
+  affiche "</title></head>";
+}
+affiche "</web>\n";
+
+######################################################################
+
+## On nettoie un peu tout cela
+
+$result =~ s#\s*\<\/code\>#</code>#gsm;
+$result =~ s#\s*\<\/h1\>#</h1>#gsm;
+$result =~ s#\s*\<\/title\>#</title>#gsm;
+
+######################################################################
+
+print $result;

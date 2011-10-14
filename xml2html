@@ -1,0 +1,384 @@
+#!/usr/bin/perl -w
+
+# xml2html.pl
+# Version 0.08
+# (c) 2001-2003 Vincent Zoonekynd <zoonek@math.jussieu.fr>
+# Distributed under the GPL
+
+use strict;
+$|++;
+our @toc;
+our $result="";
+
+use constant TRUE  => 1;
+use constant FALSE => 0;
+use Getopt::Long;
+$main::utf8 = FALSE;
+GetOptions('utf8' => \$main::utf8);
+
+package TOCHandler;
+use strict;
+use constant TRUE  => 1;
+use constant FALSE => 0;
+my $remember = FALSE;
+my $string;
+my $section_number = 0;
+my $subsection_number = 0;
+sub new { my $type = shift; return bless {}, $type; }
+sub characters {
+  my ($self,$a) = @_;
+  my $b = $a->{Data};
+  $string .= $b;
+}
+sub start_element {
+  my ($self, $el) = @_;
+  print STDERR "(TOC) START $el->{Name}\n";
+  if($el->{Name} eq "h1"){
+    $remember = TRUE;
+    $string = "";
+  }
+}
+sub end_element {
+  my($self, $el) = @_;
+  print STDERR "(TOC) END  $el->{Name}\n";
+  if($el->{Name} eq "h1") {
+    $remember = FALSE;
+    $section_number++;
+    push @toc, [$section_number, $string];
+    $string = "";
+  }
+}
+
+######################################################################
+
+package MyHandler;
+use strict;
+sub new { my $type = shift; return bless {}, $type; }
+
+## Constantes
+use constant TRUE  => 1;
+use constant FALSE => 0;
+use constant DEBUG => 0;
+
+## Variables globales
+our $save_text = FALSE;
+our $saved_text;
+our $inside_p = 0;
+our $section_number=0;
+
+our $charset = "iso-8859-1" || "UTF-8" || "ISO-2022-JP";
+$charset = "UTF-8" if $main::utf8;
+
+our $bgcolor = '#FFFFFF';
+our $text    = '#000000';
+our $alink   = '#FFFFFF';
+our $link    = '#6D8ADA';
+our $vlink   = '#415383';
+
+our $title_bgcolor   = '#ffdb43';
+our $title_fgcolor   = $text;
+
+our $section_bgcolor = '#6D8ADA';
+our $section_fgcolor = '#FFFFFF';
+
+our $code_bgcolor = '#FFFFAA';
+our $code_fgcolor = $text;
+
+our $tailer_fgcolor = '#c8c8c8';
+
+our $author = "Vincent Zoonekynd";
+our $web = "http://www.math.jussieu.fr/~zoonek/";
+our $mail = 'zoonek@math.jussieu.fr';
+our $title;
+our $imagetitle;
+our $date;
+our $keywords;
+
+## Affichage (ou sauvegarde) du texte
+sub affiche {
+  my $a = shift;
+  print STDERR "  Affiche $save_text \"$a\"\n";
+  if($save_text){ $saved_text .= $a }
+  else{ $result .= $a }
+}
+sub debug { my $a = shift; affiche "<!-- $a -->" if DEBUG; }
+
+sub characters {
+  my ($self,$a) = @_;
+  my $b = $a->{Data};
+  $b =~ s/\&/\&amp\;/g;
+  $b =~ s/\</\&lt\;/g;
+  affiche $b;
+}
+
+sub start_element {
+  my ($self, $el) = @_;
+  print STDERR "START $save_text $el->{Name}\n";
+
+  if($el->{Name} eq "web"){
+  } elsif($el->{Name} eq "head"){
+  } elsif($el->{Name} eq "title"){
+    $save_text = TRUE;
+    $saved_text = "";
+  } elsif($el->{Name} eq "date"){
+    $save_text = TRUE;
+    $saved_text = "";
+  } elsif($el->{Name} eq "keywords"){
+    $save_text = TRUE;
+    $saved_text = "";
+  } elsif($el->{Name} eq "imagetitle"){
+    $imagetitle = $el->{Attributes}->{src};
+  } elsif($el->{Name} eq "h1"){
+    $section_number++;
+    $subsection_number=0;
+    affiche "\n<!-- Section $section_number -->\n" if DEBUG;
+    affiche "<h2>";
+    affiche "<A name=\"$section_number\"></A>";
+  } elsif($el->{Name} eq "h2"){
+    $subsection_number++;
+    affiche "\n<!-- Subsection $section_number.$subsection_number -->\n" if DEBUG;
+    affiche "<h3><A name=\"$section_number.$subsection_number\"></A>";
+  } elsif($el->{Name} eq "a"){
+    affiche("<a href=\"$el->{Attributes}->{href}\">");
+  } elsif($el->{Name} eq "p"){
+    affiche("<p>");
+  } elsif($el->{Name} eq "table"){
+    debug "table";
+    affiche "<table cellpadding=0 cellspacing=0 border=0>\n";
+    affiche "<tr><td bgcolor=\"$text\"><table cellpadding=3 cellspacing=1 border=0>";
+    debug "table body";
+  } elsif($el->{Name} eq "tr"){
+    affiche('<tr>');
+  } elsif($el->{Name} eq "td"){
+    affiche "<td bgcolor=\"$bgcolor\">";
+  } elsif($el->{Name} eq "ul"){
+    debug "unnumbered list";
+    affiche('<ul>');
+  } elsif($el->{Name} eq "li"){
+    affiche('<li>');
+  } elsif($el->{Name} eq "img"){
+    debug "image";
+    my $alt = $el->{Attributes}->{alt} || "*";
+    affiche("<p align=\"center\"><IMG SRC=\"$el->{Attributes}->{src}\" ALT=\"$alt\"></p>");
+  } elsif($el->{Name} eq "code"){
+    debug "code";
+    affiche("<pre>");
+  } elsif($el->{Name} eq "em"){
+    affiche('<em>');
+  } elsif($el->{Name} eq "tt"){
+    affiche('<tt>');
+  } elsif($el->{Name} eq "toc"){
+    affiche '<blockquote>';
+    foreach(@toc){
+      my ($n, $t) = @$_;
+      affiche '<A HREF="#'. $n .'">'. $t .'</A><br>';
+    }
+    affiche '</blockquote>';
+  }
+}
+sub end_element {
+  my $self=shift;
+  my $el=shift;
+  print STDERR "END  $save_text $el->{Name}\n";
+  if($el->{Name} eq "web"){
+    affiche "<p align =\"RIGHT\">";
+    affiche "<font color=\"$tailer_fgcolor\">";
+    affiche "<a href=\"$web\" style=\"text-decoration: none\">$author</a><br>\n";
+    affiche "<a href=\"mailto:$mail\" style=\"text-decoration: none\">\&lt;$mail></a><br>\n";
+    affiche "$date<br>\n" if $date;
+    affiche "latest modification on ". `date`;
+    affiche "</font></p>\n";
+    affiche "</body></html>";
+
+  } elsif($el->{Name} eq "head"){
+    affiche "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"
+\"http://www.w3.org/TR/html4/loose.dtd\">
+<!-- This is a generated file -->
+<html>
+  <head>
+    <title>$title</title>
+    <style type=\"text/css\">
+BODY {
+  background-color: $bgcolor;
+  color: $text;
+}
+H1 {
+  background-color: $title_bgcolor;
+  color: $title_fgcolor;
+  padding: 20pt;
+  margin-left:  20%;
+  margin-right: 20%;
+  text-align: center;
+}
+H2 { 
+  background-color: $section_bgcolor;
+  color: $section_fgcolor;
+  font-weight: normal;
+  font-weight: bold;
+  font-size: medium;
+  margin-left: 0pt;
+  padding: 5pt;
+}
+H3 {
+  font-weight: bold;
+  font-size: medium;
+}
+PRE {
+  background-color: $code_bgcolor;
+  color: $code_fgcolor;
+  border: thin solid;
+  white-space: pre;
+  margin-left:  20pt;
+  margin-right: 20pt;
+  padding-bottom: 10pt;
+  padding-left: 10pt;
+  padding-right: 10pt;
+  padding-top: 10pt;
+}
+P {
+  margin-left:  20pt;
+  margin-right: 20pt;
+}
+LI P {
+  margin-left:  0pt;
+  margin-right: 0pt;
+}
+    </style>
+    <meta http-equiv=\"Content-Style-Type\" content=\"text/css\">
+    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=$charset\">
+";
+  affiche "<meta NAME=\"keywords\" CONTENT=\"$keywords\">" if $keywords;
+affiche "</head>
+  <body  bgcolor=\"$bgcolor\" text=\"$text\" link=\"$link\" alink=\"$alink\" vlink=\"$vlink\">
+
+";
+    if( defined $imagetitle ){
+      affiche "<p align=\"center\"><img src=\"$imagetitle\" alt=\"$title\"></p>\n";
+    } else {
+      affiche "<h1>$title</h1>\n";
+    }
+  } elsif($el->{Name} eq "title"){
+    $save_text = FALSE;
+    $title = $saved_text;
+  } elsif($el->{Name} eq "date"){
+    $save_text = FALSE;
+    $date = $saved_text;
+  } elsif($el->{Name} eq "keywords"){
+    $save_text = FALSE;
+    $keywords = $saved_text;
+  } elsif($el->{Name} eq "imagetitle"){
+  } elsif($el->{Name} eq "h1"){
+    affiche "</h2>\n";
+  } elsif($el->{Name} eq "h2"){
+    affiche "</h3>\n";
+  } elsif($el->{Name} eq "a"){
+    affiche("</a>");
+  } elsif($el->{Name} eq "p"){
+    affiche("</p>");
+    debug "paragraph end";
+  } elsif($el->{Name} eq "table"){
+    debug "table body end";
+    affiche('</table></td></tr></table>');
+    debug "table end";
+  } elsif($el->{Name} eq "tr"){
+    affiche('</tr>');
+  } elsif($el->{Name} eq "td"){
+    affiche('</td>');
+  } elsif($el->{Name} eq "ul"){
+    affiche('</ul>');
+    debug "unnumbered list end";
+  } elsif($el->{Name} eq "li"){
+    affiche('</li>');
+  } elsif($el->{Name} eq "img"){
+  } elsif($el->{Name} eq "code"){
+    affiche('</pre>');
+    debug "code end";
+  } elsif($el->{Name} eq "em"){
+    affiche('</em>');
+  } elsif($el->{Name} eq "tt"){
+    affiche('</tt>');
+  }
+}
+
+######################################################################
+
+package main;
+use strict;
+our $xml = join('',<>);
+
+use XML::Parser::PerlSAX;
+import MyHandler;
+my $toc_handler = TOCHandler->new;
+my $toc_parser = XML::Parser::PerlSAX->new( Handler => $toc_handler );
+$toc_parser->parse( Source => { String => $xml } );
+
+my $my_handler = MyHandler->new;
+my $parser = XML::Parser::PerlSAX->new( Handler => $my_handler );
+$parser = XML::Parser::PerlSAX->new( Handler => $my_handler );
+$parser->parse( Source => { String => $xml } );
+
+######################################################################
+
+## Correction du codage
+
+{
+  unless($main::utf8) {
+    print STDERR "**********************\n";
+    print STDERR " CONVERTING TO LATIN1\n";
+    print STDERR "**********************\n";
+    open(A, '>', 'tmp.html') || die "Cannot open tmp.html for writing: $!";
+    print A $result;
+    close A;
+    #system "recode UTF-8..latin1 <tmp.html >tmp2.html"
+    system "cat <tmp.html >tmp2.html"
+      || die "Problem with recode: $!";
+    open(A, '<', "tmp2.html");
+    $result = join('',<A>);
+    close A;
+#  unlink "tmp.html";
+#  unlink "tmp2.html";
+  }
+}
+
+######################################################################
+
+## On essaye d'enlever les espaces avant </pre>
+
+$result =~ s|\s+</pre>|</pre>|gi;
+
+######################################################################
+
+## BUG : on obtient de l'UTF8 corrompu jusqu'à la dernière image.
+
+print $result; exit;
+
+## Ajout de la taille des images
+{
+  my $new = "";
+  while( $result =~ s/^(.*?)SRC\=\"([^"]*)\"//si ){ #"
+    my $avant = $1;
+    my $file = $2;
+    print STDERR "Looking for the size of $file\n";
+    open(SIZE, "convert -verbose $file /dev/null|") || 
+      warn "Cannot run `file $file /dev/null': $!";
+  #    warn "Cannot run `convert -verbose $file /dev/null': $!";
+    my $tmp = join('',<SIZE>);
+    close SIZE;
+    my($width,$height)=(320,256);
+    if($tmp =~ m/([0-9]+)x([0-9]+)/){
+      $width = $1;
+      $height = $2;
+    }
+    print STDERR " width: $width height: $height\n";
+    $new .= $avant ." WIDTH=$width HEIGHT=$height SRC=\"$file\" ";
+  }
+  $new .= $result;
+  $result = $new;
+}
+
+######################################################################
+
+print $result;
+
+
+

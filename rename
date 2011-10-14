@@ -1,0 +1,10 @@
+#!/usr/bin/perl -w
+use strict;
+my $reg = shift @ARGV;
+foreach (@ARGV) { 
+  my $old = $_;
+  eval "$reg;";
+  die $@ if $@;
+  rename $old, $_;
+}
+

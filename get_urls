@@ -1,0 +1,12 @@
+#! /usr/bin/perl -w
+use strict;
+use HTML::LinkExtor;
+my $p = HTML::LinkExtor->new(\&cb, "");
+sub cb {
+  my($tag, %links) = @_;
+  print join("\n",
+             map { $links{$_} } (keys %links)
+            ) . "\n";
+}
+my $all; { local $/; $all = <>; }
+$p->parse($all);
