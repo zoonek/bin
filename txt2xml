@@ -1,4 +1,7 @@
 #!/usr/bin/perl -w
+
+# Old version of the code used to generate my web pages and by blog.
+
 use strict;
 
 use constant TRUE  => (0==0);
@@ -33,8 +36,7 @@ affiche "<web>
     <title>";
 
 while(<>){
-  # Une ligne blanche termine le titre du document et des sections
-  # Sinon, elle est juste ignorée.
+  # Empty line after the document or section titles
   if( m/^\s*$/ ){
     print STDERR "Empty line: $_";
     if( $type == TITLE ){
@@ -49,7 +51,7 @@ while(<>){
     } 
     $type = NONE unless $type == CODE;
   }
-  # Ligne qui commence par « = »
+  # Line starting with "="
   elsif( s/^\=\s*(.*)// ){
     print STDERR "Image: $1\n";
     if( $type == NONE ){
@@ -62,7 +64,7 @@ while(<>){
       die "Missing empty line?";
     }
   }
-  # Une ligne (non blanche) qui commence par deux espaces
+  # Non-empty line starting with two spaces
   elsif( s/^\s\s// ){
     print STDERR "Code:       $_";
     if( $type == NONE ){
@@ -72,7 +74,7 @@ while(<>){
     }
     $type = CODE;
   }
-  # Une ligne qui commence par *
+  # Line starting with * 
   elsif( s/^\*\s*// ){
     print STDERR "Section:    $_";
     if( $type == CODE ){
@@ -82,7 +84,7 @@ while(<>){
     } else { die "Missing empty line ?" }
     $type = SECTION;
   }
-  # Une ligne qui commence par +
+  # Line starting with +
   elsif( s/^\+\s*// ){
     print STDERR "Subsection: $_";
     if( $type == CODE ){
@@ -92,7 +94,7 @@ while(<>){
     } else { die "Missing empty line ?" }
     $type = SUBSECTION;
   }
-  # Une ligne commençant par autre chose qu'un espace : texte.
+  # Line starting with something else: text
   elsif( m/^[^\s]/ and ($type != TITLE) ){
     print STDERR "Text:       $_";
     if( $type == CODE ){
@@ -105,8 +107,8 @@ while(<>){
     $type = TEXT;
   }
 
-  # On échape les caracères < et &
-  # On essaie de reconnaitre les URLs
+  # Escape < and &
+  # Try to recognize URLs
   {
     my $a = $_;
     my $b = "";
@@ -143,7 +145,7 @@ affiche "</web>\n";
 
 ######################################################################
 
-## On nettoie un peu tout cela
+## Cleaning
 
 $result =~ s#\s*\<\/code\>#</code>#gsm;
 $result =~ s#\s*\<\/h1\>#</h1>#gsm;

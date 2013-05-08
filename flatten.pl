@@ -1,4 +1,8 @@
 #!/usr/bin/perl -w
+
+# Flatten a directory structure: just rename all the files, 
+# replacing / with _.
+
 use strict;
 use constant DEBUG => 0;
 use File::Find;

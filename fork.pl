@@ -1,4 +1,8 @@
-#! /share/nfs/users1/umr-tge/zoonek/gnu/Linux/bin/perl -w
+#! perl -w
+
+# Simple load balancer.
+# The input is a list of shell commands: run them all, 10 at a time.
+
 use strict;
 my $MAX_PROCESSES = shift || 10;
 
